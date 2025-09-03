@@ -2,35 +2,157 @@
 <html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>My Test Blog — Blog</title>
-<meta name="description" content="Articles about best air fryer 2025, air fryer vs convection oven, cheap air fryer recipes"/>
+<meta name="description" content="Articles about Top Air Fryers to Consider in 2025, Air Fryer vs Convection Oven: Which is Better?, 10 Cheap Air Fryer Recipes for Budget-Friendly Meals"/>
 <link rel="canonical" href="https://calcifergtp-glitch.github.io/my-test-site/"/>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
+<script defer data-domain="calcifergtp-glitch.github.io" src="https://plausible.io/js/script.js"></script>
 <style>
-.small{opacity:.8} .product-box{border:1px dashed #bbb;padding:1rem;border-radius:.75rem}
-.list a{display:block;padding:.35rem 0} footer{margin-top:2rem}
-nav a{margin-right:.5rem}
+.tag.is-link { text-decoration:none }
+.card-image img { object-fit:cover; width:100%; height:180px }
+.hero.is-dark a { color: #fff; text-decoration: underline }
 </style>
-</head><body><main class="container">
-<header>
-  <h1>🔥 My Test Blog</h1>
-  <p class="small">Fresh posts generated automatically.</p>
-  <nav class="small">
-    <a href="/my-test-site/">Home</a>
-    <a href="/my-test-site/about.html">About</a>
-    <a href="/my-test-site/contact.html">Contact</a>
-    <a href="/my-test-site/privacy.html">Privacy</a>
-    <a href="/my-test-site/disclosure.html">Disclosure</a>
-  </nav>
-</header>
-
-<section>
-  <h2>Latest Posts</h2>
-  <div class="list">
-    <p>• <a href="/my-test-site/posts/air-fryer-vs-convection-oven/">Air Fryer vs Convection Oven: Which is Better?</a></p>
-<p>• <a href="/my-test-site/posts/best-air-fryer-2025/">Discover the Best Air Fryer for 2025</a></p>
-<p>• <a href="/my-test-site/posts/cheap-air-fryer-recipes/">Delicious and Cheap Air Fryer Recipes to Try Today</a></p>
+</head><body>
+<section class="hero is-dark">
+  <div class="hero-body">
+    <div class="container">
+      <h1 class="title">🔥 My Test Blog</h1>
+      <p class="subtitle">Fresh, helpful articles — generated automatically.</p>
+      <p><a class="button is-light is-outlined" href="/my-test-site/about.html">About</a>
+         <a class="button is-light is-outlined" href="/my-test-site/contact.html">Contact</a>
+         <a class="button is-light is-outlined" href="/my-test-site/privacy.html">Privacy</a>
+         <a class="button is-light is-outlined" href="/my-test-site/disclosure.html">Disclosure</a></p>
+    </div>
   </div>
 </section>
 
-<footer class="small">© 2025 My Test Blog</footer>
-</main></body></html>
+<section class="section"><div class="container">
+<div class="columns">
+  <div class="column is-three-quarters">
+    <h2 class="title is-4">Latest Posts</h2>
+    
+<div class="field has-addons" style="margin:1rem 0">
+  <div class="control is-expanded">
+    <input id="q" class="input" type="search" placeholder="Search posts…" aria-label="Search" />
+  </div>
+  <div class="control">
+    <button id="qbtn" class="button is-link">Search</button>
+  </div>
+</div>
+<div id="qresults" class="content"></div>
+<script>
+(function() {
+  const q = document.getElementById('q');
+  const btn = document.getElementById('qbtn');
+  const out = document.getElementById('qresults');
+  let idx = [];
+  fetch('/my-test-site/search.json').then(r => r.json()).then(d => idx = d);
+
+  function run() {
+    const term = (q.value||'').toLowerCase().trim();
+    if (!term) { out.innerHTML = ''; return; }
+    const parts = term.split(/\s+/);
+    const res = idx.map(it => {
+      let score = 0;
+      const hay = (it.title + ' ' + it.category + ' ' + it.tags.join(' ') + ' ' + it.text).toLowerCase();
+      for (const p of parts) if (hay.includes(p)) score += 1;
+      return [score, it];
+    }).filter(x => x[0] > 0).sort((a,b) => b[0]-a[0]).slice(0,20).map(x => x[1]);
+    out.innerHTML = res.length
+      ? '<ul>' + res.map(it => `<li><a href="/my-test-site/posts/${it.slug}/">${it.title}</a> <span class="tag is-light">${it.category}</span></li>`).join('') + '</ul>'
+      : '<p><em>No results</em></p>';
+  }
+  btn.addEventListener('click', run);
+  q.addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+})();
+</script>
+
+    <div class="columns is-multiline">
+      
+<div class="column is-half">
+  <div class="card">
+    <div class="card-image">
+      <figure class="image">
+        <img src="https://picsum.photos/seed/best-air-fryer-2025-card/600/338" alt="Top Air Fryers to Consider in 2025" loading="lazy">
+      </figure>
+    </div>
+    <div class="card-content">
+      <p class="tags">
+        <span class="tag is-info is-light">Category</span>
+        <a class="tag is-link is-light" href="/my-test-site/category/kitchen-appliances/">Kitchen Appliances</a>
+      </p>
+      <p class="title is-5"><a href="/my-test-site/posts/best-air-fryer-2025/">Top Air Fryers to Consider in 2025</a></p>
+      <p><a class="button is-link is-light is-small" href="/my-test-site/posts/best-air-fryer-2025/">Read →</a></p>
+    </div>
+  </div>
+</div>
+
+
+<div class="column is-half">
+  <div class="card">
+    <div class="card-image">
+      <figure class="image">
+        <img src="https://picsum.photos/seed/air-fryer-vs-convection-oven-card/600/338" alt="Air Fryer vs Convection Oven: Which is Better?" loading="lazy">
+      </figure>
+    </div>
+    <div class="card-content">
+      <p class="tags">
+        <span class="tag is-info is-light">Category</span>
+        <a class="tag is-link is-light" href="/my-test-site/category/kitchen-appliances/">Kitchen Appliances</a>
+      </p>
+      <p class="title is-5"><a href="/my-test-site/posts/air-fryer-vs-convection-oven/">Air Fryer vs Convection Oven: Which is Better?</a></p>
+      <p><a class="button is-link is-light is-small" href="/my-test-site/posts/air-fryer-vs-convection-oven/">Read →</a></p>
+    </div>
+  </div>
+</div>
+
+
+<div class="column is-half">
+  <div class="card">
+    <div class="card-image">
+      <figure class="image">
+        <img src="https://picsum.photos/seed/cheap-air-fryer-recipes-card/600/338" alt="10 Cheap Air Fryer Recipes for Budget-Friendly Meals" loading="lazy">
+      </figure>
+    </div>
+    <div class="card-content">
+      <p class="tags">
+        <span class="tag is-info is-light">Category</span>
+        <a class="tag is-link is-light" href="/my-test-site/category/food/">Food</a>
+      </p>
+      <p class="title is-5"><a href="/my-test-site/posts/cheap-air-fryer-recipes/">10 Cheap Air Fryer Recipes for Budget-Friendly Meals</a></p>
+      <p><a class="button is-link is-light is-small" href="/my-test-site/posts/cheap-air-fryer-recipes/">Read →</a></p>
+    </div>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+  <aside class="column">
+    <div class="box">
+      <h3 class="title is-5">Categories</h3>
+      <p>• <a href="/my-test-site/category/kitchen-appliances/">Kitchen Appliances</a> <span class="tag is-light">2</span></p>
+<p>• <a href="/my-test-site/category/food/">Food</a> <span class="tag is-light">1</span></p>
+    </div>
+    <div class="box">
+      <h3 class="title is-5">Tags</h3>
+      <div class="tags"><a class="tag is-link is-light" href="/my-test-site/tag/air-fryer/">air fryer (3)</a>
+<a class="tag is-link is-light" href="/my-test-site/tag/cooking/">cooking (2)</a>
+<a class="tag is-link is-light" href="/my-test-site/tag/budget-recipes/">budget recipes (1)</a>
+<a class="tag is-link is-light" href="/my-test-site/tag/convection-oven/">convection oven (1)</a>
+<a class="tag is-link is-light" href="/my-test-site/tag/easy-cooking/">easy cooking (1)</a>
+<a class="tag is-link is-light" href="/my-test-site/tag/kitchen-gadgets/">kitchen gadgets (1)</a></div>
+    </div>
+    <div class="box">
+      <h3 class="title is-5">Affiliate Disclosure</h3>
+      <p>This site contains affiliate links. We may earn a commission at no extra cost to you.</p>
+    </div>
+  </aside>
+</div>
+
+<footer class="footer">
+  <div class="content has-text-centered">
+    <p>© 2025 My Test Blog • <a href="/my-test-site/sitemap.xml">Sitemap</a></p>
+  </div>
+</footer>
+</div></section>
+</body></html>
