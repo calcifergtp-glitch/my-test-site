@@ -1,27 +1,56 @@
-name: Deploy static site to Pages
+name: Build & Deploy (scheduled)
+
 on:
-  push:
-    branches: ["main"]
-  workflow_dispatch: {}
+  schedule:
+    - cron: "0 12 * * 1,4"   # Twice a week at 12:00 UTC (Mon & Thu)
+  workflow_dispatch: {}       # Manual "Run workflow" button
+
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
+
 concurrency:
   group: "pages"
   cancel-in-progress: true
+
 jobs:
-  deploy:
+  build-and-deploy:
+    runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
+      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          pip install openai python-slugify
+
+      - name: Generate one new post and rebuild site
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python build.py --site_url "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}" --brand "${{ github.event.repository.name }}" --limit 1 --domain "${{ github.repository_owner }}.github.io" --analytics "plausible:${{ github.repository_owner }}.github.io"
+
+      - name: Commit site changes (if any)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add site/ data/ || true
+          git commit -m "chore: scheduled post + rebuild" || echo "no changes to commit"
+          git push || true
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./site
+
       - name: Deploy to GitHub Pages
-        id: deployment
+        id: deploy
         uses: actions/deploy-pages@v4
