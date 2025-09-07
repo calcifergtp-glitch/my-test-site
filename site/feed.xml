@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>My Test Blog</title>
+  <link href="https://calcifergtp-glitch.github.io/my-test-site/feed.xml" rel="self"/>
+  <link href="https://calcifergtp-glitch.github.io/my-test-site/"/>
+  <updated>2025-09-07T15:48:20Z</updated>
+  <id>https://calcifergtp-glitch.github.io/my-test-site/</id>
+  
+  <entry>
+    <title>Discover the Best Air Fryer Options for 2025</title>
+    <link href="https://calcifergtp-glitch.github.io/my-test-site/posts/best-air-fryer-2025/"/>
+    <id>https://calcifergtp-glitch.github.io/my-test-site/posts/best-air-fryer-2025/</id>
+    <updated>2025-09-07T15:48:20Z</updated>
+    <summary>
+        Category
+        Appliances
+        &amp;nbsp;
+        Tags
+        air fryer 2025 cooking kitchen appliances
+      </summary>
+  </entry>
+  <entry>
+    <title>Air Fryer vs Convection Oven: Which is Best for You?</title>
+    <link href="https://calcifergtp-glitch.github.io/my-test-site/posts/air-fryer-vs-convection-oven/"/>
+    <id>https://calcifergtp-glitch.github.io/my-test-site/posts/air-fryer-vs-convection-oven/</id>
+    <updated>2025-09-07T15:48:20Z</updated>
+    <summary>
+        Category
+        Appliances
+        &amp;nbsp;
+        Tags
+        air fryer convection oven cooking kitchen appliances
+      </summary>
+  </entry>
+  <entry>
+    <title>Easy and Cheap Air Fryer Recipes for Everyone</title>
+    <link href="https://calcifergtp-glitch.github.io/my-test-site/posts/cheap-air-fryer-recipes/"/>
+    <id>https://calcifergtp-glitch.github.io/my-test-site/posts/cheap-air-fryer-recipes/</id>
+    <updated>2025-09-07T15:48:20Z</updated>
+    <summary>
+        Category
+        Cooking
+        &amp;nbsp;
+        Tags
+        air fryer recipes budget cooking easy meals
+      </summary>
+  </entry>
+</feed>

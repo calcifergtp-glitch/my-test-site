@@ -1,5 +1,5 @@
 # ssg/templates.py
-# NOTE: CSS braces doubled {{ }} for Python .format()
+# NOTE: CSS/JS literal braces are doubled {{ }} for Python .format() escaping.
 
 INDEX_SHELL = """<!doctype html>
 <html lang="en"><head>
@@ -10,6 +10,7 @@ INDEX_SHELL = """<!doctype html>
 <title>{brand} — Blog</title>
 <meta name="description" content="{desc}"/>
 <link rel="canonical" href="{site_url}/"/>
+<link rel="alternate" type="application/atom+xml" title="{brand} Feed" href="{base_prefix}/feed.xml">
 <link rel="stylesheet" href="{theme_css}">
 {analytics}
 <style>
@@ -21,7 +22,29 @@ INDEX_SHELL = """<!doctype html>
 .hero.is-dark a {{ color: #fff; text-decoration: underline }}
 .product-box .subtitle {{ margin:0; }}
 .cta-banner {{ display:flex; align-items:center; justify-content:space-between }}
+.pagination-list .pagination-link.is-current {{ background:var(--brand); color:#fff; border-color:var(--brand);}}
 </style>
+<script type="application/ld+json">
+{{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "{brand}",
+  "url": "{site_url}/",
+  "potentialAction": {{
+    "@type": "SearchAction",
+    "target": "{site_url}/?q={{q}}",
+    "query-input": "required name=q"
+  }}
+}}
+</script>
+<script type="application/ld+json">
+{{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "{brand}",
+  "url": "{site_url}/"
+}}
+</script>
 </head><body>
 
 <nav class="navbar" role="navigation" aria-label="main navigation">
@@ -39,7 +62,9 @@ INDEX_SHELL = """<!doctype html>
         <a class="navbar-item" href="{base_prefix}/contact.html">Contact</a>
         <a class="navbar-item" href="{base_prefix}/privacy.html">Privacy</a>
         <a class="navbar-item" href="{base_prefix}/disclosure.html">Disclosure</a>
+        <a class="navbar-item" href="{base_prefix}/archive.html">Archive</a>
         <a class="navbar-item" href="{base_prefix}/sitemap.xml">Sitemap</a>
+        <a class="navbar-item" href="{base_prefix}/feed.xml">RSS</a>
       </div>
     </div>
   </div>
@@ -62,6 +87,8 @@ INDEX_SHELL = """<!doctype html>
     <div class="columns is-multiline">
       {post_cards}
     </div>
+
+    {pagination}
   </div>
 
   <aside class="column">
@@ -119,6 +146,33 @@ POST_TPL = """<!doctype html>
 <link rel="stylesheet" href="{theme_css}">
 {analytics}
 <style>.tag.is-link {{ text-decoration:none }}</style>
+
+<script type="application/ld+json">
+{{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {{
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": "{site_url}/"
+    }},
+    {{
+      "@type": "ListItem",
+      "position": 2,
+      "name": "{category}",
+      "item": "{site_url}/category/{cat_slug}/"
+    }},
+    {{
+      "@type": "ListItem",
+      "position": 3,
+      "name": "{title}",
+      "item": "{site_url}/posts/{slug}/"
+    }}
+  ]
+}}
+</script>
 </head><body>
 
 <section class="hero is-link">
@@ -163,6 +217,26 @@ POST_TPL = """<!doctype html>
 
       <!-- Sources -->
       {sources_html}
+
+      <hr/>
+      <div class="level">
+        <div class="level-left">
+          <div>
+            <p class="has-text-weight-bold">Share</p>
+            <p class="buttons">
+              <a class="button is-small" href="https://twitter.com/intent/tweet?url={site_url}/posts/{slug}/&text={title}" target="_blank" rel="noopener nofollow">Twitter/X</a>
+              <a class="button is-small" href="https://www.facebook.com/sharer/sharer.php?u={site_url}/posts/{slug}/" target="_blank" rel="noopener nofollow">Facebook</a>
+              <a class="button is-small" href="https://www.reddit.com/submit?url={site_url}/posts/{slug}/&title={title}" target="_blank" rel="noopener nofollow">Reddit</a>
+              <button class="button is-small" onclick="navigator.clipboard.writeText('{site_url}/posts/{slug}/');this.innerText='Copied!';">Copy link</button>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <article class="box" style="margin-top:1rem">
+        <p class="title is-6">About the author</p>
+        <p><strong>{author_name}</strong> — {author_bio} {author_link}</p>
+      </article>
     </div>
 
     {related_html}
@@ -219,5 +293,19 @@ PAGE_TPL = """<!doctype html>
 </footer>
 {container_close}
 <script src="{base_prefix}/assets/js/telemetry.js"></script>
+</body></html>
+"""
+
+NOT_FOUND_TPL = """<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Not Found — {brand}</title>
+<link rel="stylesheet" href="{theme_css}">
+</head><body>
+{container_open}
+<h1 class="title">404 — Page not found</h1>
+<p>Sorry, we can’t find that page.</p>
+<p><a class="button is-link is-light" href="{base_prefix}/">Back to Home</a></p>
+{container_close}
 </body></html>
 """
