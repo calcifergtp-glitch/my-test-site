@@ -21,9 +21,53 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Python is preinstalled on ubuntu-latest, but we call it explicitly for clarity
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Preflight — show files & Python
+        run: |
+          python --version
+          echo "==== REPO TREE ===="
+          ls -la
+          echo "==== SSG TREE ===="
+          ls -la ssg || echo "No ssg folder found"
+          echo "==== show build.py head ===="
+          head -n 50 build.py || true
+
+      - name: Sanity checks — required files
+        run: |
+          test -f build.py
+          test -d ssg
+          test -f ssg/content.py
+          test -f ssg/render.py
+          test -f ssg/templates.py
+          test -f ssg/analytics.py
+          test -f ssg/monetize.py
+
+      - name: Syntax check (compile all .py)
+        run: |
+          python - << 'PY'
+          import sys, pathlib, py_compile
+          roots = [pathlib.Path('.')]
+          files = []
+          for root in roots:
+            for p in root.rglob('*.py'):
+              files.append(str(p))
+          print("Compiling:", len(files), "files")
+          err = 0
+          for f in files:
+            try:
+              py_compile.compile(f, doraise=True)
+            except Exception as e:
+              print("SYNTAX ERROR in", f, "->", e)
+              err = 1
+          sys.exit(err)
+          PY
+
       - name: Build site
-        run: python3 build.py
+        run: python build.py
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
