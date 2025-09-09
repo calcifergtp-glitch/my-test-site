@@ -7,6 +7,16 @@ from .templates import INDEX_SHELL, POST_TPL, PAGE_TPL, NOT_FOUND_TPL
 
 PAGE_SIZE = 8
 
+def image_for(topic:str, w:int, h:int) -> str:
+    """
+    Returns a topical image from Unsplash Source (no API key).
+    Example: https://source.unsplash.com/1200x630/?air-fryer,kitchen
+    Note: image may change across builds (it's a live, curated random).
+    """
+    q = slugify(topic or "kitchen").replace("-", ",")
+    return f"https://source.unsplash.com/{w}x{h}/?{q}"
+
+
 def escape(s:str)->str: return html.escape(s or "")
 
 try:
@@ -177,7 +187,7 @@ def write_post(brand, site_url, base_prefix, payload, amazon_tag, theme, related
         meta_desc=escape(data.get("meta_description","")),
         site_url=site_url.rstrip("/"), slug=slug, base_prefix=base_prefix,
         theme_css=THEMES["bulma"]["css"], analytics=analytics_html, date=today,
-        hero_img=f"https://picsum.photos/seed/{slug}/1200/630", body_html=body_html,
+        hero_img=image_for(title or payload.get("keyword",""), 1200, 630),
         inline_cta=inline_cta, intext_related=intext_related, sources_html=sources_html,
         top_pick_box=top_pick_box, comparison_table="", year=datetime.date.today().year,
         container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"],
@@ -194,7 +204,7 @@ def _cards_for(posts_meta, base_prefix):
     cards=[]
     for m in posts_meta:
         slug=m["slug"]; title=escape(m["title"]); cat=escape(m["category"]); cat_slug=slugify(m["category"])
-        img=card_url(slug)
+        img=image_for(m.get("title") or slug, 600, 338)
         cards.append(f"""
 <div class="column is-half">
   <div class="card">
