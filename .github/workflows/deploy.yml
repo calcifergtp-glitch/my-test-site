@@ -1,73 +1,35 @@
-name: Build & Deploy (Pages)
+name: Deploy to GitHub Pages
 
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: true
+  workflow_dispatch: # lets you trigger manually too
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
-      - name: Preflight — show files & Python
-        run: |
-          python --version
-          echo "==== REPO TREE ===="
-          ls -la
-          echo "==== SSG TREE ===="
-          ls -la ssg || echo "No ssg folder found"
-          echo "==== show build.py head ===="
-          head -n 50 build.py || true
-
-      - name: Sanity checks — required files
-        run: |
-          test -f build.py
-          test -d ssg
-          test -f ssg/content.py
-          test -f ssg/render.py
-          test -f ssg/templates.py
-          test -f ssg/analytics.py
-          test -f ssg/monetize.py
-
-      - name: Syntax check (compile all .py)
-        run: |
-          python - << 'PY'
-          import sys, pathlib, py_compile
-          roots = [pathlib.Path('.')]
-          files = []
-          for root in roots:
-            for p in root.rglob('*.py'):
-              files.append(str(p))
-          print("Compiling:", len(files), "files")
-          err = 0
-          for f in files:
-            try:
-              py_compile.compile(f, doraise=True)
-            except Exception as e:
-              print("SYNTAX ERROR in", f, "->", e)
-              err = 1
-          sys.exit(err)
-          PY
+      - name: Install dependencies
+        run: pip install -r requirements.txt || true
 
       - name: Build site
-        run: python build.py
+        run: |
+          python build.py \
+            --site_url "https://calcifergtp-glitch.github.io/my-test-site" \
+            --brand "My Test Blog" \
+            --amazon_tag "yourtag-20" \
+            --keywords_file data/keywords.json \
+            --audience "home cooks in US" \
+            --author_name "SiteSmith Bot" \
+            --author_url "https://calcifergtp-glitch.github.io/my-test-site/about.html" \
+            --author_bio "Automated blog powered by SiteSmith GPT."
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
@@ -76,11 +38,7 @@ jobs:
 
   deploy:
     needs: build
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
+      - id: deployment
         uses: actions/deploy-pages@v4
