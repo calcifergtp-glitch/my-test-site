@@ -1,23 +1,37 @@
-name: Deploy to GitHub Pages
+name: Build & Deploy (Pages)
 
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: # lets you trigger manually too
+  workflow_dispatch:
+
+# >>> REQUIRED for Pages OIDC <<<
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt || true
+      # (Optional) show quick info
+      - name: Preflight
+        run: |
+          python --version
+          ls -la
 
       - name: Build site
         run: |
@@ -31,6 +45,9 @@ jobs:
             --author_url "https://calcifergtp-glitch.github.io/my-test-site/about.html" \
             --author_bio "Automated blog powered by SiteSmith GPT."
 
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
@@ -39,6 +56,11 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - id: deployment
+      - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
+
