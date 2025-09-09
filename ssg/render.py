@@ -1,21 +1,11 @@
-﻿# ssg/render.py — magazine homepage, TOC, category sections, related links, feed, sitemap, etc.
-import os, re, json, html, datetime, math, textwrap
+﻿# ssg/render.py — safe pair for templates; includes topical images + pagination + sitemap/feed/search
+import os, re, json, html, datetime, math
 from pathlib import Path
 from typing import List, Dict
 from .themes import THEMES
 from .templates import INDEX_SHELL, POST_TPL, PAGE_TPL, NOT_FOUND_TPL
 
 PAGE_SIZE = 8
-
-def image_for(topic:str, w:int, h:int) -> str:
-    """
-    Returns a topical image from Unsplash Source (no API key).
-    Example: https://source.unsplash.com/1200x630/?air-fryer,kitchen
-    Note: image may change across builds (it's a live, curated random).
-    """
-    q = slugify(topic or "kitchen").replace("-", ",")
-    return f"https://source.unsplash.com/{w}x{h}/?{q}"
-
 
 def escape(s:str)->str: return html.escape(s or "")
 
@@ -36,8 +26,16 @@ def prepare_dirs(ROOT: Path):
     (SITE/"assets"/"js").mkdir(parents=True, exist_ok=True)
     return SITE, POSTS, DATA
 
-def hero_url(slug,w=1200,h=630): return f"https://picsum.photos/seed/{slug}/{w}/{h}"
-def card_url(slug,w=600,h=338): return f"https://picsum.photos/seed/{slug}-card/{w}/{h}"
+def image_for(topic:str, w:int, h:int) -> str:
+    """
+    Returns a topical image from Unsplash Source (no API key).
+    Example: https://source.unsplash.com/1200x630/?air-fryer,kitchen
+    """
+    q = (slugify(topic or "kitchen")).replace("-", ",")
+    return f"https://source.unsplash.com/{w}x{h}/?{q}"
+
+def card_url(slug,w=600,h=338):  # kept for compatibility; now delegates to topical images
+    return image_for(slug, w, h)
 
 def paginate(items:List[Dict], page:int, size:int=PAGE_SIZE):
     total = max(1, math.ceil(len(items)/size)); page = max(1, min(page,total))
@@ -76,11 +74,12 @@ def render_tags(base_prefix,tags:List[str])->str:
 def render_sections(sections):
     out=[]
     for s in sections or []:
-        h=escape(s.get("heading","")); 
-        if h: 
+        h=escape(s.get("heading",""))
+        if h:
             anchor = slugify(h)
             out.append(f'<h2 id="{anchor}" class="title is-4">{h}</h2>')
-        for p in s.get("paragraphs",[]) or []: out.append(f"<p>{escape(p)}</p>")
+        for p in s.get("paragraphs",[]) or []:
+            out.append(f"<p>{escape(p)}</p>")
     return "\n".join(out)
 
 def render_faq(faq):
@@ -88,8 +87,7 @@ def render_faq(faq):
     out=['<h2 class="title is-4" id="faq">FAQ</h2>']
     for it in faq:
         q=escape(it.get("q","")); a=escape(it.get("a",""))
-        if q: 
-            out.append(f"<h3 class='title is-6' id='{slugify(q)}'>{q}</h3><p>{a}</p>")
+        if q: out.append(f"<h3 class='title is-6' id='{slugify(q)}'>{q}</h3><p>{a}</p>")
     return "\n".join(out)
 
 def render_sources(sources):
@@ -119,92 +117,11 @@ def render_related(base_prefix, related):
     items="".join(f'<li><a href="{base_prefix}/posts/{m["slug"]}/">{escape(m["title"])}</a></li>' for m in related[:6])
     return f'<div class="box"><h2 class="title is-5">Related posts</h2><ul>{items}</ul></div>'
 
-def _extract_h2s_from_html(html_txt:str)->List[str]:
-    return [re.sub(r"<.*?>","", h).strip() for h in re.findall(r"<h2[^>]*>(.*?)</h2>", html_txt, re.S)]
-
-def _build_toc(h2s:List[str])->str:
-    if not h2s: return ""
-    links = "".join(f'<li><a href="#{slugify(h)}">{escape(h)}</a></li>' for h in h2s)
-    return f'<aside class="box toc-box"><p class="title is-6">On this page</p><ul>{links}</ul></aside>'
-
-def _article_schema(site_url, slug, title, meta_desc, date_iso, author_name):
-    return json.dumps({
-        "@context":"https://schema.org",
-        "@type":"Article",
-        "headline": title,
-        "description": meta_desc,
-        "datePublished": date_iso,
-        "dateModified": date_iso,
-        "author": {"@type":"Person", "name": author_name},
-        "mainEntityOfPage": {"@type":"WebPage", "@id": f"{site_url.rstrip('/')}/posts/{slug}/"}
-    })
-
-def _faq_schema(faq):
-    if not faq: return ""
-    items=[]
-    for it in faq:
-        q=(it.get("q") or "").strip(); a=(it.get("a") or "").strip()
-        if not q or not a: continue
-        items.append({"@type":"Question","name":q,"acceptedAnswer":{"@type":"Answer","text":a}})
-    if not items: return ""
-    return '<script type="application/ld+json">'+json.dumps({"@context":"https://schema.org","@type":"FAQPage","mainEntity":items})+"</script>"
-
-def write_post(brand, site_url, base_prefix, payload, amazon_tag, theme, related_list, analytics_html):
-    ROOT=Path(__file__).resolve().parents[1]; SITE=ROOT/"site"; POSTS=SITE/"posts"
-    slug=payload["slug"]; data=payload["data"]; category=payload["category"]; tags=payload["tags"]; title=payload["title"]
-    today=datetime.date.today().isoformat()
-    aff_url=f"https://www.amazon.com/dp/B000000000?tag={amazon_tag}"
-    inline_cta=cta_banner("Our top pick is in stock with fast shipping.", aff_url)
-    top_pick_box=product_box(data.get("product_name","Our Pick"), data.get("product_blurb","Solid choice for most."), aff_url)
-
-    # Body
-    body=[]
-    if data.get("summary"): body.append(f"<p><em>{escape(data['summary'])}</em></p>")
-    body.append(render_sections(data.get("sections",[])))
-    body.append(render_faq(data.get("faq",[])))
-    body_html="\n".join([b for b in body if b])
-
-    sources_html=render_sources(data.get("sources",[]))
-
-    intext_related=""
-    links=[f'<a href="{base_prefix}/posts/{r["slug"]}/">{escape(r["title"])}</a>' for r in related_list[:3]]
-    if links: intext_related="<p><em>Related:</em> " + " • ".join(links) + "</p>"
-
-    # TOC
-    h2s=_extract_h2s_from_html(body_html)
-    toc_html=_build_toc(h2s)
-
-    a_name = escape(payload.get("author_name") or "Staff Writer")
-    a_bio  = escape(payload.get("author_bio") or "")
-    a_url  = (payload.get("author_url") or "").strip()
-    author_link = f'• <a href="{escape(a_url)}" target="_blank" rel="nofollow noopener">Profile</a>' if a_url else ""
-
-    article_schema = _article_schema(site_url, slug, title, data.get("meta_description",""), today, a_name)
-    faq_schema = _faq_schema(data.get("faq",[]))
-
-    html_out = POST_TPL.format(
-        title=escape(title), brand=escape(brand),
-        meta_desc=escape(data.get("meta_description","")),
-        site_url=site_url.rstrip("/"), slug=slug, base_prefix=base_prefix,
-        theme_css=THEMES["bulma"]["css"], analytics=analytics_html, date=today,
-        hero_img=image_for(title or payload.get("keyword",""), 1200, 630),
-        inline_cta=inline_cta, intext_related=intext_related, sources_html=sources_html,
-        top_pick_box=top_pick_box, comparison_table="", year=datetime.date.today().year,
-        container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"],
-        category=escape(category), cat_slug=slugify(category), tags_html=render_tags(base_prefix,tags),
-        related_html=render_related(base_prefix, related_list),
-        author_name=a_name, author_bio=a_bio, author_link=author_link,
-        article_schema=article_schema, faq_schema=faq_schema, toc_html=toc_html
-    )
-    folder=POSTS/slug; folder.mkdir(parents=True, exist_ok=True)
-    (folder/"index.html").write_text(html_out, encoding="utf-8")
-    return slug
-
 def _cards_for(posts_meta, base_prefix):
     cards=[]
     for m in posts_meta:
         slug=m["slug"]; title=escape(m["title"]); cat=escape(m["category"]); cat_slug=slugify(m["category"])
-        img=image_for(m.get("title") or slug, 600, 338)
+        img=card_url(m.get("title") or slug, 600, 338)
         cards.append(f"""
 <div class="column is-half">
   <div class="card">
@@ -247,50 +164,24 @@ def rebuild_index(brand, desc, site_url, base_prefix, theme, posts_meta, analyti
     write_telemetry_js(SITE, base_prefix="")
     items=posts_meta[:]
 
-    # Featured hero uses newest post (last in list is newest if we just built it)
-    hero = items[-1] if items else {"slug":"", "title":"Welcome", "category":"General"}
-    hero_slug = hero.get("slug","")
-    hero_title = hero.get("title","Welcome")
-    hero_summary = "Fresh guides, reviews, and comparisons."
-
-    # Latest posts grid with pagination
-    page_items, page, total = paginate(items[::-1], 1, PAGE_SIZE)  # newest first
+    # Newest first for homepage
+    page_items, page, total = paginate(items[::-1], 1, PAGE_SIZE)
     post_cards=_cards_for(page_items, base_prefix)
     pagination=pagination_html(base_prefix, page, total, "")
 
-    # Sidebar: category counts and tag cloud
+    # Sidebar: counts
     cat_counts={}; tag_counts={}
     for m in posts_meta:
         cat_counts[m["category"]]=cat_counts.get(m["category"],0)+1
         for t in m["tags"]: tag_counts[t]=tag_counts.get(t,0)+1
-    category_list = "\n".join(
-        f'<p>• <a href="{base_prefix}/category/{slugify(c)}/">{escape(c)}</a> <span class="tag is-light">{n}</span></p>'
-        for c,n in sorted(cat_counts.items(), key=lambda x:(-x[1],x[0].lower()))
-    ) or "<p><em>None yet</em></p>"
-    tag_cloud = " ".join(
-        f'<a class="tag is-link is-light" href="{base_prefix}/tag/{slugify(t)}/">{escape(t)} ({n})</a>'
-        for t,n in sorted(tag_counts.items(), key=lambda x:(-x[1],x[0].lower()))
-    ) or '<span class="tag is-light">none</span>'
-
-    # Category sections (top 2 categories, 4 items each newest-first)
-    top_cats = [c for c,_ in sorted(cat_counts.items(), key=lambda x:(-x[1],x[0].lower()))][:2]
-    sections=[]
-    for cat in top_cats:
-        posts = [m for m in items[::-1] if m["category"]==cat][:4]
-        if not posts: continue
-        rows="\n".join(
-            f'<li><a href="{base_prefix}/posts/{m["slug"]}/">{escape(m["title"])}</a></li>' for m in posts
-        )
-        sections.append(f'<h3 class="title is-5 section-title">Latest in {escape(cat)}</h3><ul>{rows}</ul>')
-    category_sections = "\n".join(sections)
+    category_list = "\n".join(f'<p>• <a href="{base_prefix}/category/{slugify(c)}/">{escape(c)}</a> <span class="tag is-light">{n}</span></p>' for c,n in sorted(cat_counts.items(), key=lambda x:(-x[1],x[0].lower()))) or "<p><em>None yet</em></p>"
+    tag_cloud = " ".join(f'<a class="tag is-link is-light" href="{base_prefix}/tag/{slugify(t)}/">{escape(t)} ({n})</a>' for t,n in sorted(tag_counts.items(), key=lambda x:(-x[1],x[0].lower()))) or '<span class="tag is-light">none</span>'
 
     html_out = INDEX_SHELL.format(
       brand=escape(brand), desc=escape(desc), site_url=site_url.rstrip("/"), theme_css=THEMES["bulma"]["css"], analytics=analytics_html,
       container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"],
       post_cards=post_cards, category_list=category_list, tag_cloud=tag_cloud,
-      category_sections=category_sections or "",
-      year=datetime.date.today().year, base_prefix=base_prefix, search_bar=_search_bar_html(base_prefix), pagination=pagination,
-      hero_slug=hero_slug, hero_title=escape(hero_title), hero_summary=escape(hero_summary)
+      year=datetime.date.today().year, base_prefix=base_prefix, search_bar=_search_bar_html(base_prefix), pagination=pagination
     )
     (SITE/"index.html").write_text(html_out, encoding="utf-8")
 
@@ -302,9 +193,7 @@ def rebuild_index(brand, desc, site_url, base_prefix, theme, posts_meta, analyti
               brand=escape(brand), desc=escape(desc), site_url=site_url.rstrip("/"), theme_css=THEMES["bulma"]["css"], analytics=analytics_html,
               container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"],
               post_cards=post_cards, category_list=category_list, tag_cloud=tag_cloud,
-              category_sections=category_sections or "",
-              year=datetime.date.today().year, base_prefix=base_prefix, search_bar=_search_bar_html(base_prefix), pagination=pagination,
-              hero_slug=hero_slug, hero_title=escape(hero_title), hero_summary=escape(hero_summary)
+              year=datetime.date.today().year, base_prefix=base_prefix, search_bar=_search_bar_html(base_prefix), pagination=pagination
             )
             folder = SITE/"page"/str(n); folder.mkdir(parents=True, exist_ok=True); (folder/"index.html").write_text(out, encoding="utf-8")
 
@@ -420,11 +309,55 @@ def write_standard_pages(brand, site_url, base_prefix, theme, analytics_html, au
         out = PAGE_TPL.format(title=meta["title"], brand=escape(brand), site_url=site_url.rstrip("/"), slug=slug_name, theme_css=THEMES["bulma"]["css"], analytics=analytics_html, base_prefix=base_prefix, body_html=meta["body"], year=datetime.date.today().year, container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"])
         (SITE/f"{slug_name}.html").write_text(out, encoding="utf-8")
 
+def write_post(brand, site_url, base_prefix, payload, amazon_tag, theme, related_list, analytics_html):
+    ROOT=Path(__file__).resolve().parents[1]; SITE=ROOT/"site"; POSTS=SITE/"posts"
+    slug=payload["slug"]; data=payload["data"]; category=payload["category"]; tags=payload["tags"]; title=payload["title"]
+    today=datetime.date.today().isoformat()
+    aff_url=f"https://www.amazon.com/dp/B000000000?tag={amazon_tag}"
+    inline_cta=cta_banner("Our top pick is in stock with fast shipping.", aff_url)
+    top_pick_box=product_box(data.get("product_name","Our Pick"), data.get("product_blurb","Solid choice for most."), aff_url)
+
+    # Body content
+    body=[]
+    if data.get("summary"): body.append(f"<p><em>{escape(data['summary'])}</em></p>")
+    body.append(render_sections(data.get("sections",[])))
+    body.append(render_faq(data.get("faq",[])))
+    body_html="\n".join([b for b in body if b])
+
+    sources_html=render_sources(data.get("sources",[]))
+
+    intext_related=""
+    links=[f'<a href="{base_prefix}/posts/{r["slug"]}/">{escape(r["title"])}</a>' for r in related_list[:3]]
+    if links: intext_related="<p><em>Related:</em> " + " • ".join(links) + "</p>"
+
+    a_name = escape(payload.get("author_name") or "Staff Writer")
+    a_bio  = escape(payload.get("author_bio") or "")
+    a_url  = (payload.get("author_url") or "").strip()
+    author_link = f'• <a href="{escape(a_url)}" target="_blank" rel="nofollow noopener">Profile</a>' if a_url else ""
+
+    html_out = POST_TPL.format(
+        title=escape(title), brand=escape(brand),
+        meta_desc=escape(data.get("meta_description","")),
+        site_url=site_url.rstrip("/"), slug=slug, base_prefix=base_prefix,
+        theme_css=THEMES["bulma"]["css"], analytics=analytics_html, date=today,
+        hero_img=image_for(title or payload.get("keyword",""), 1200, 630),
+        body_html=body_html,
+        inline_cta=inline_cta, intext_related=intext_related, sources_html=sources_html,
+        top_pick_box=top_pick_box, comparison_table="", year=datetime.date.today().year,
+        container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"],
+        category=escape(category), cat_slug=slugify(category), tags_html=render_tags(base_prefix,tags),
+        related_html=render_related(base_prefix, related_list),
+        author_name=a_name, author_bio=a_bio, author_link=author_link,
+    )
+    folder=POSTS/slug; folder.mkdir(parents=True, exist_ok=True)
+    (folder/"index.html").write_text(html_out, encoding="utf-8")
+    return slug
+
 def write_archive_pages(brand, site_url, base_prefix, theme, posts_meta, analytics_html):
     ROOT=Path(__file__).resolve().parents[1]; SITE=ROOT/"site"
     by_cat={}
     for m in posts_meta: by_cat.setdefault(m["category"],[]).append(m)
-    sections=["<h2 class='title is-4'>All posts (newest first)</h2>"]
+    sections=["<h2 class='title is-4'>All posts (A–Z)</h2>"]
     for m in sorted(posts_meta, key=lambda x:x["title"].lower()):
         sections.append(f'<p>• <a href="{base_prefix}/posts/{m["slug"]}/">{escape(m["title"])}</a> <span class="tag is-light">{escape(m["category"])}</span></p>')
     sections.append("<hr/><h2 class='title is-4'>By Category</h2>")
