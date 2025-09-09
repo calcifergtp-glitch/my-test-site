@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<article class="card">
+  <h1>{{ post.meta.title }}</h1>
+  <div class="meta">{{ post.meta.date }} • Categories: {{ post.meta.categories|join(", ") if post.meta.categories else "—" }} • Tags: {{ post.meta.tags|join(", ") if post.meta.tags else "—" }}</div>
+  {{ jsonld|safe }}
+  <div>{{ content|safe }}</div>
+</article>
+{% endblock %}

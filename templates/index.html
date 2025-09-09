@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>Latest Posts</h1>
+  <div class="grid">
+    {% for p in posts %}
+    <article class="card">
+      <a href="/posts/{{ p.slug }}.html"><h3>{{ p.meta.title }}</h3></a>
+      <div class="meta">{{ p.meta.date }}</div>
+      <p>{{ p.meta.description or "" }}</p>
+      <a class="btn-cta" href="/posts/{{ p.slug }}.html">Read →</a>
+    </article>
+    {% endfor %}
+  </div>
+{% endblock %}
