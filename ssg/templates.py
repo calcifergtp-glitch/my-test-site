@@ -10,6 +10,7 @@ INDEX_SHELL = """<!doctype html>
 <link rel="canonical" href="{site_url}/"/>
 <link rel="alternate" type="application/atom+xml" title="{brand} Feed" href="{base_prefix}/feed.xml">
 <link rel="stylesheet" href="{theme_css}">
+{jsonld}
 {analytics}
 <style>
 :root {{ --brand: #2f6feb; }}
@@ -17,6 +18,9 @@ INDEX_SHELL = """<!doctype html>
 .navbar a, .navbar .navbar-item {{ color:#fff; }}
 .card-image img {{ object-fit:cover; width:100%; height:180px }}
 .pagination-list .pagination-link.is-current {{ background:var(--brand); color:#fff; border-color:var(--brand);}}
+.footer {{ margin-top:2rem }}
+.hero.is-light {{ background:#f7f9fc }}
+.content a {{ text-decoration: underline; }}
 </style>
 </head><body>
 
@@ -25,22 +29,29 @@ INDEX_SHELL = """<!doctype html>
   <div class="navbar-menu">
     <div class="navbar-start">
       <a class="navbar-item" href="{base_prefix}/">Home</a>
+      <a class="navbar-item" href="{base_prefix}/archive.html">Archive</a>
       <a class="navbar-item" href="{base_prefix}/about.html">About</a>
       <a class="navbar-item" href="{base_prefix}/contact.html">Contact</a>
       <a class="navbar-item" href="{base_prefix}/privacy.html">Privacy</a>
       <a class="navbar-item" href="{base_prefix}/disclosure.html">Disclosure</a>
-      <a class="navbar-item" href="{base_prefix}/archive.html">Archive</a>
       <a class="navbar-item" href="{base_prefix}/sitemap.xml">Sitemap</a>
       <a class="navbar-item" href="{base_prefix}/feed.xml">RSS</a>
     </div>
   </div>
 </div></nav>
 
+<section class="hero is-light">
+  <div class="hero-body"><div class="container">
+    <h1 class="title">{brand}</h1>
+    <p class="subtitle">{desc}</p>
+  </div></div>
+</section>
+
 {container_open}
 <div class="columns">
   <div class="column is-three-quarters">
-    <h2 class="title is-4">Latest Posts</h2>
     {search_bar}
+    <h2 class="title is-4" style="margin-top:1rem">Latest Posts</h2>
     <div class="columns is-multiline">
       {post_cards}
     </div>
@@ -49,7 +60,7 @@ INDEX_SHELL = """<!doctype html>
   <aside class="column">
     <div class="box"><h3 class="title is-5">Categories</h3>{category_list}</div>
     <div class="box"><h3 class="title is-5">Tags</h3><div class="tags">{tag_cloud}</div></div>
-    <div class="box"><h3 class="title is-6">Affiliate Disclosure</h3><p>We may earn a commission from links on this page.</p></div>
+    <div class="box"><h3 class="title is-6">Affiliate Disclosure</h3><p>We may earn a commission from links on this page. See our <a href="{base_prefix}/disclosure.html">Disclosure</a>.</p></div>
   </aside>
 </div>
 <footer class="footer"><div class="content has-text-centered"><p>© {year} {brand}</p></div></footer>
@@ -66,18 +77,27 @@ POST_TPL = """<!doctype html>
 <meta name="description" content="{meta_desc}"/>
 <link rel="canonical" href="{site_url}/posts/{slug}/"/>
 <link rel="stylesheet" href="{theme_css}">
+{jsonld}
 {analytics}
-<style>.tag.is-link {{ text-decoration:none }}</style>
+<style>
+.tag.is-link {{ text-decoration:none }}
+figure.image img {{ width:100%; height:auto }}
+.content a {{ text-decoration: underline; }}
+</style>
 </head><body>
 
-{container_open}
-<h1 class="title">{title}</h1>
-<p class="subtitle">Published {date}</p>
-<figure class="image is-16by9" style="margin-bottom:1rem">
-  {hero_img_tag}
-</figure>
+<nav class="navbar"><div class="container">
+  <div class="navbar-brand"><a class="navbar-item" href="{base_prefix}/">🔥 {brand}</a></div>
+</div></nav>
 
-<div class="content">
+{container_open}
+<article class="content">
+  <h1 class="title">{title}</h1>
+  <p class="subtitle">Published {date}</p>
+  <figure class="image is-16by9" style="margin-bottom:1rem">
+    {hero_img_tag}
+  </figure>
+
   <p>
     <span class="tag is-info is-light">Category</span>
     <a class="tag is-link is-light" href="{base_prefix}/category/{cat_slug}/">{category}</a>
@@ -89,6 +109,7 @@ POST_TPL = """<!doctype html>
   {inline_cta}
   {body_html}
   {intext_related}
+
   {sources_html}
 
   <hr/>
@@ -102,7 +123,8 @@ POST_TPL = """<!doctype html>
     <p class="title is-6">About the author</p>
     <p><strong>{author_name}</strong> — {author_bio} {author_link}</p>
   </article>
-</div>
+
+</article>
 
 {related_html}
 <hr/><h2 class="title is-5">Top Pick</h2>{top_pick_box}
@@ -115,13 +137,24 @@ POST_TPL = """<!doctype html>
 """
 
 PAGE_TPL = """<!doctype html>
-<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>{title} — {brand}</title>
 <link rel="canonical" href="{site_url}/{slug}.html"/>
-<link rel="stylesheet" href="{theme_css}">{analytics}</head><body>
-{container_open}<div class="content">{body_html}</div>
+<link rel="stylesheet" href="{theme_css}">
+{jsonld}
+{analytics}
+<style>.content a {{ text-decoration: underline; }}</style>
+</head><body>
+<nav class="navbar"><div class="container">
+  <div class="navbar-brand"><a class="navbar-item" href="{base_prefix}/">🔥 {brand}</a></div>
+</div></nav>
+{container_open}
+<div class="content">{body_html}</div>
 <footer class="footer"><div class="content has-text-centered"><p>© {year} {brand}</p></div></footer>
-{container_close}<script src="{base_prefix}/assets/js/telemetry.js"></script></body></html>
+{container_close}
+<script src="{base_prefix}/assets/js/telemetry.js"></script>
+</body></html>
 """
 
 NOT_FOUND_TPL = """<!doctype html>
