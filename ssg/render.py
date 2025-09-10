@@ -1,4 +1,4 @@
-﻿# ssg/render.py — safe pair for templates; includes topical images + pagination + sitemap/feed/search
+﻿# ssg/render.py — images with robust fallback (Unsplash Source → Picsum), plus the usual build bits
 import os, re, json, html, datetime, math
 from pathlib import Path
 from typing import List, Dict
@@ -26,16 +26,20 @@ def prepare_dirs(ROOT: Path):
     (SITE/"assets"/"js").mkdir(parents=True, exist_ok=True)
     return SITE, POSTS, DATA
 
-def image_for(topic:str, w:int, h:int) -> str:
-    """
-    Returns a topical image from Unsplash Source (no API key).
-    Example: https://source.unsplash.com/1200x630/?air-fryer,kitchen
-    """
-    q = (slugify(topic or "kitchen")).replace("-", ",")
-    return f"https://source.unsplash.com/{w}x{h}/?{q}"
+def image_topic(topic:str) -> str:
+    """Turn a title into an Unsplash query like 'air,fryer,kitchen'."""
+    return (slugify(topic or "kitchen")).replace("-", ",")
 
-def card_url(slug,w=600,h=338):  # kept for compatibility; now delegates to topical images
-    return image_for(slug, w, h)
+def img_tag(topic:str, w:int, h:int, alt:str) -> str:
+    """
+    Prefer Unsplash Source (topic-based), fallback to Picsum if it fails.
+    The onerror handler swaps to Picsum seamlessly on client side.
+    """
+    q = image_topic(topic)
+    primary = f"https://source.unsplash.com/{w}x{h}/?{q}"
+    fallback = f"https://picsum.photos/seed/{slugify(topic)}/{w}/{h}"
+    return (f'<img src="{primary}" alt="{escape(alt)}" loading="lazy" '
+            f'onerror="this.onerror=null;this.src=\'{fallback}\';">')
 
 def paginate(items:List[Dict], page:int, size:int=PAGE_SIZE):
     total = max(1, math.ceil(len(items)/size)); page = max(1, min(page,total))
@@ -121,11 +125,11 @@ def _cards_for(posts_meta, base_prefix):
     cards=[]
     for m in posts_meta:
         slug=m["slug"]; title=escape(m["title"]); cat=escape(m["category"]); cat_slug=slugify(m["category"])
-        img=card_url(m.get("title") or slug, 600, 338)
+        img_html = img_tag(m.get("title") or slug, 600, 338, title)
         cards.append(f"""
 <div class="column is-half">
   <div class="card">
-    <div class="card-image"><figure class="image"><img src="{img}" alt="{title}" loading="lazy"></figure></div>
+    <div class="card-image"><figure class="image">{img_html}</figure></div>
     <div class="card-content">
       <p class="tags"><span class="tag is-info is-light">Category</span> <a class="tag is-link is-light" href="{base_prefix}/category/{cat_slug}/">{cat}</a></p>
       <p class="title is-5"><a href="{base_prefix}/posts/{slug}/">{title}</a></p>
@@ -335,12 +339,14 @@ def write_post(brand, site_url, base_prefix, payload, amazon_tag, theme, related
     a_url  = (payload.get("author_url") or "").strip()
     author_link = f'• <a href="{escape(a_url)}" target="_blank" rel="nofollow noopener">Profile</a>' if a_url else ""
 
+    hero_img_tag = img_tag(title or payload.get("keyword",""), 1200, 630, title)
+
     html_out = POST_TPL.format(
         title=escape(title), brand=escape(brand),
         meta_desc=escape(data.get("meta_description","")),
         site_url=site_url.rstrip("/"), slug=slug, base_prefix=base_prefix,
         theme_css=THEMES["bulma"]["css"], analytics=analytics_html, date=today,
-        hero_img=image_for(title or payload.get("keyword",""), 1200, 630),
+        hero_img_tag=hero_img_tag,
         body_html=body_html,
         inline_cta=inline_cta, intext_related=intext_related, sources_html=sources_html,
         top_pick_box=top_pick_box, comparison_table="", year=datetime.date.today().year,

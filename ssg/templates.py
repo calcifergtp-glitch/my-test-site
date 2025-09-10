@@ -74,7 +74,7 @@ POST_TPL = """<!doctype html>
 <h1 class="title">{title}</h1>
 <p class="subtitle">Published {date}</p>
 <figure class="image is-16by9" style="margin-bottom:1rem">
-  <img src="{hero_img}" alt="{title}" loading="lazy">
+  {hero_img_tag}
 </figure>
 
 <div class="content">
