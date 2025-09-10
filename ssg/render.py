@@ -1,4 +1,4 @@
-﻿# ssg/render.py — images with robust fallback (Unsplash Source → Picsum), plus the usual build bits
+# ssg/render.py — structured pages + longer posts + citations + JSON-LD + safe images
 import os, re, json, html, datetime, math
 from pathlib import Path
 from typing import List, Dict
@@ -19,27 +19,78 @@ except Exception:
         s = _re.sub(r"[^a-z0-9]+","-",s).strip("-")
         return s or "post"
 
+# --- optional slug->image mapping (data/images.json) ---
+_IMAGE_MAP = None
+def load_image_map() -> Dict[str,str]:
+    global _IMAGE_MAP
+    if _IMAGE_MAP is not None:
+        return _IMAGE_MAP
+    ROOT = Path(__file__).resolve().parents[1]
+    path = ROOT / "data" / "images.json"
+    if not path.exists():
+        _IMAGE_MAP = {}
+        return _IMAGE_MAP
+    try:
+        _IMAGE_MAP = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(_IMAGE_MAP, dict):
+            _IMAGE_MAP = {}
+    except Exception:
+        _IMAGE_MAP = {}
+    return _IMAGE_MAP
+
+def _local_image_for_slug(slug: str) -> str | None:
+    """
+    Prefer a committed local image:
+      site/assets/img/posts/<slug>.(jpg|jpeg|png|webp)
+    Returns a site-relative URL or None.
+    """
+    ROOT = Path(__file__).resolve().parents[1]
+    base = ROOT / "site" / "assets" / "img" / "posts"
+    for ext in (".jpg", ".jpeg", ".png", ".webp"):
+        p = base / f"{slug}{ext}"
+        if p.exists():
+            return f"/assets/img/posts/{slug}{ext}"
+    return None
+
+def img_tag_from_url(url:str, w:int, h:int, alt:str) -> str:
+    """Direct URL (local or remote) with a Picsum fallback if remote fails."""
+    if not url:
+        return img_tag_fallback(alt, w, h, alt)
+    if url.startswith("/"):
+        return f'<img src="{url}" alt="{escape(alt)}" loading="lazy">'
+    fallback = f"https://picsum.photos/seed/{slugify(alt)}/{w}/{h}"
+    return (f'<img src="{url}" alt="{escape(alt)}" loading="lazy" '
+            f'onerror="this.onerror=null;this.src=\'{fallback}\';">')
+
+def img_tag_fallback(topic:str, w:int, h:int, alt:str) -> str:
+    q = (slugify(topic or "kitchen")).replace("-", ",")
+    primary = f"https://source.unsplash.com/{w}x{h}/?{q}"
+    fallback = f"https://picsum.photos/seed/{slugify(topic)}/{w}/{h}"
+    return (f'<img src="{primary}" alt="{escape(alt)}" loading="lazy" '
+            f'onerror="this.onerror=null;this.src=\'{fallback}\';">')
+
+def hero_img_for(slug: str, title: str, w: int, h: int) -> str:
+    """
+    Priority:
+      1) local asset: /assets/img/posts/<slug>.(jpg|png|webp)
+      2) images.json mapping by slug
+      3) stock fallback
+    """
+    local = _local_image_for_slug(slug)
+    if local:
+        return f'<img src="{local}" alt="{escape(title)}" loading="lazy">'
+    imap = load_image_map()
+    mapped = imap.get(slug) or imap.get(slugify(slug))
+    if mapped:
+        return img_tag_from_url(mapped, w, h, title)
+    return img_tag_fallback(title or slug, w, h, title)
+
 def prepare_dirs(ROOT: Path):
     SITE = ROOT/"site"; POSTS = SITE/"posts"; DATA = ROOT/"data"
     SITE.mkdir(exist_ok=True); POSTS.mkdir(parents=True, exist_ok=True); DATA.mkdir(exist_ok=True)
     (SITE/".nojekyll").write_text("\n",encoding="utf-8")
     (SITE/"assets"/"js").mkdir(parents=True, exist_ok=True)
     return SITE, POSTS, DATA
-
-def image_topic(topic:str) -> str:
-    """Turn a title into an Unsplash query like 'air,fryer,kitchen'."""
-    return (slugify(topic or "kitchen")).replace("-", ",")
-
-def img_tag(topic:str, w:int, h:int, alt:str) -> str:
-    """
-    Prefer Unsplash Source (topic-based), fallback to Picsum if it fails.
-    The onerror handler swaps to Picsum seamlessly on client side.
-    """
-    q = image_topic(topic)
-    primary = f"https://source.unsplash.com/{w}x{h}/?{q}"
-    fallback = f"https://picsum.photos/seed/{slugify(topic)}/{w}/{h}"
-    return (f'<img src="{primary}" alt="{escape(alt)}" loading="lazy" '
-            f'onerror="this.onerror=null;this.src=\'{fallback}\';">')
 
 def paginate(items:List[Dict], page:int, size:int=PAGE_SIZE):
     total = max(1, math.ceil(len(items)/size)); page = max(1, min(page,total))
@@ -77,13 +128,19 @@ def render_tags(base_prefix,tags:List[str])->str:
 
 def render_sections(sections):
     out=[]
+    # Expand sections with H2/H3 variety and paragraph spacing
     for s in sections or []:
         h=escape(s.get("heading",""))
         if h:
             anchor = slugify(h)
             out.append(f'<h2 id="{anchor}" class="title is-4">{h}</h2>')
+        # paragraphs
         for p in s.get("paragraphs",[]) or []:
             out.append(f"<p>{escape(p)}</p>")
+        # optional bullets
+        for lst in s.get("bullets",[]) or []:
+            if isinstance(lst, list) and lst:
+                out.append("<ul>" + "".join(f"<li>{escape(x)}</li>" for x in lst) + "</ul>")
     return "\n".join(out)
 
 def render_faq(faq):
@@ -101,7 +158,7 @@ def render_sources(sources):
         title=escape(s.get("title","Source")); url=(s.get("url") or "").strip()
         if url.startswith("http"): lis.append(f'<li><a href="{escape(url)}" target="_blank" rel="nofollow noopener">{title}</a></li>')
         else: lis.append(f"<li>{title}</li>")
-    return f"<h2 class='title is-5'>Further reading</h2><ul>{''.join(lis)}</ul>"
+    return f"<h2 class='title is-5'>Sources & citations</h2><ul>{''.join(lis)}</ul>"
 
 def product_box(title, blurb, url):
     return f'''<div class="box product-box"><p class="title is-6">{escape(title)}</p><p class="subtitle is-6">{escape(blurb)}</p><p><a class="button is-link" href="{escape(url)}" target="_blank" rel="sponsored nofollow noopener">Check price →</a></p></div>'''
@@ -125,7 +182,7 @@ def _cards_for(posts_meta, base_prefix):
     cards=[]
     for m in posts_meta:
         slug=m["slug"]; title=escape(m["title"]); cat=escape(m["category"]); cat_slug=slugify(m["category"])
-        img_html = img_tag(m.get("title") or slug, 600, 338, title)
+        img_html = hero_img_for(slug, m.get("title") or slug, 600, 338)
         cards.append(f"""
 <div class="column is-half">
   <div class="card">
@@ -162,18 +219,69 @@ def _search_bar_html(base_prefix):
 </script>
 """
 
+# ----------------- JSON-LD helpers -----------------
+
+def jsonld_site(brand, site_url):
+    data = {
+        "@context":"https://schema.org",
+        "@type":"WebSite",
+        "name":brand,
+        "url":site_url.rstrip("/"),
+        "potentialAction": {
+            "@type":"SearchAction",
+            "target": f"{site_url.rstrip('/')}/?q={{search_term_string}}",
+            "query-input":"required name=search_term_string"
+        }
+    }
+    return '<script type="application/ld+json">'+json.dumps(data)+'</script>'
+
+def jsonld_webpage(title, site_url, url):
+    data = {
+        "@context":"https://schema.org",
+        "@type":"WebPage",
+        "name": title,
+        "url": url
+    }
+    return '<script type="application/ld+json">'+json.dumps(data)+'</script>'
+
+def jsonld_article(title, site_url, slug, author_name, published_iso, tags, faq_items=None):
+    url=f"{site_url.rstrip('/')}/posts/{slug}/"
+    data = {
+        "@context":"https://schema.org",
+        "@type":"Article",
+        "headline": title,
+        "author": {"@type":"Person","name": author_name},
+        "datePublished": published_iso,
+        "dateModified": published_iso,
+        "mainEntityOfPage": {"@type":"WebPage","@id": url},
+        "keywords": ", ".join(tags or [])
+    }
+    blocks = ['<script type="application/ld+json">'+json.dumps(data)+'</script>']
+    if faq_items:
+        faq = {
+            "@context":"https://schema.org",
+            "@type":"FAQPage",
+            "mainEntity": [
+                {"@type":"Question","name": q.get("q",""),
+                 "acceptedAnswer":{"@type":"Answer","text": q.get("a","")}}
+                for q in faq_items if q.get("q")
+            ]
+        }
+        blocks.append('<script type="application/ld+json">'+json.dumps(faq)+'</script>')
+    return "\n".join(blocks)
+
+# ----------------- Build main pages -----------------
+
 def rebuild_index(brand, desc, site_url, base_prefix, theme, posts_meta, analytics_html):
     ROOT=Path(__file__).resolve().parents[1]; SITE=ROOT/"site"
     (SITE/"assets"/"js").mkdir(parents=True, exist_ok=True)
     write_telemetry_js(SITE, base_prefix="")
     items=posts_meta[:]
 
-    # Newest first for homepage
     page_items, page, total = paginate(items[::-1], 1, PAGE_SIZE)
     post_cards=_cards_for(page_items, base_prefix)
     pagination=pagination_html(base_prefix, page, total, "")
 
-    # Sidebar: counts
     cat_counts={}; tag_counts={}
     for m in posts_meta:
         cat_counts[m["category"]]=cat_counts.get(m["category"],0)+1
@@ -182,7 +290,8 @@ def rebuild_index(brand, desc, site_url, base_prefix, theme, posts_meta, analyti
     tag_cloud = " ".join(f'<a class="tag is-link is-light" href="{base_prefix}/tag/{slugify(t)}/">{escape(t)} ({n})</a>' for t,n in sorted(tag_counts.items(), key=lambda x:(-x[1],x[0].lower()))) or '<span class="tag is-light">none</span>'
 
     html_out = INDEX_SHELL.format(
-      brand=escape(brand), desc=escape(desc), site_url=site_url.rstrip("/"), theme_css=THEMES["bulma"]["css"], analytics=analytics_html,
+      brand=escape(brand), desc=escape(desc), site_url=site_url.rstrip("/"), theme_css=THEMES["bulma"]["css"],
+      analytics=analytics_html, jsonld=jsonld_site(brand, site_url),
       container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"],
       post_cards=post_cards, category_list=category_list, tag_cloud=tag_cloud,
       year=datetime.date.today().year, base_prefix=base_prefix, search_bar=_search_bar_html(base_prefix), pagination=pagination
@@ -194,7 +303,8 @@ def rebuild_index(brand, desc, site_url, base_prefix, theme, posts_meta, analyti
             page_items, _, _ = paginate(items[::-1], n, PAGE_SIZE)
             post_cards=_cards_for(page_items, base_prefix); pagination=pagination_html(base_prefix, n, total, "")
             out = INDEX_SHELL.format(
-              brand=escape(brand), desc=escape(desc), site_url=site_url.rstrip("/"), theme_css=THEMES["bulma"]["css"], analytics=analytics_html,
+              brand=escape(brand), desc=escape(desc), site_url=site_url.rstrip("/"), theme_css=THEMES["bulma"]["css"],
+              analytics=analytics_html, jsonld=jsonld_site(brand, site_url),
               container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"],
               post_cards=post_cards, category_list=category_list, tag_cloud=tag_cloud,
               year=datetime.date.today().year, base_prefix=base_prefix, search_bar=_search_bar_html(base_prefix), pagination=pagination
@@ -223,14 +333,14 @@ def build_category_pages(brand, site_url, base_prefix, theme, posts_meta, analyt
         page_items, page, total = paginate(items[::-1], 1, PAGE_SIZE)
         folder=root/slugify(cat); folder.mkdir(parents=True, exist_ok=True)
         body=f"<h2 class='title is-4'>{escape(cat)}</h2>" + "".join(f'<p>• <a href="{base_prefix}/posts/{m["slug"]}/">{escape(m["title"])}</a></p>' for m in page_items) + pagination_html(base_prefix, page, total, f"category/{slugify(cat)}")
-        html_out = PAGE_TPL.format(title=f"{cat} — Category", brand=escape(brand), site_url=site_url.rstrip("/"), slug="", theme_css=THEMES["bulma"]["css"], analytics=analytics_html, base_prefix=base_prefix, body_html=body, year=datetime.date.today().year, container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"])
+        html_out = PAGE_TPL.format(title=f"{cat} — Category", brand=escape(brand), site_url=site_url.rstrip("/"), slug="", theme_css=THEMES["bulma"]["css"], analytics=analytics_html, base_prefix=base_prefix, body_html=body, year=datetime.date.today().year, container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"], jsonld=jsonld_webpage(f"Category: {cat}", site_url, f"{site_url.rstrip('/')}/category/{slugify(cat)}/"))
         (folder/"index.html").write_text(html_out, encoding="utf-8")
         if total>1:
             for n in range(2,total+1):
                 page_items, _, _ = paginate(items[::-1], n, PAGE_SIZE)
                 body=f"<h2 class='title is-4'>{escape(cat)}</h2>" + "".join(f'<p>• <a href="{base_prefix}/posts/{m["slug"]}/">{escape(m["title"])}</a></p>' for m in page_items) + pagination_html(base_prefix, n, total, f"category/{slugify(cat)}")
                 pdir = folder/"page"/str(n); pdir.mkdir(parents=True, exist_ok=True)
-                (pdir/"index.html").write_text(PAGE_TPL.format(title=f"{cat} — Category", brand=escape(brand), site_url=site_url.rstrip("/"), slug="", theme_css=THEMES["bulma"]["css"], analytics=analytics_html, base_prefix=base_prefix, body_html=body, year=datetime.date.today().year, container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"]), encoding="utf-8")
+                (pdir/"index.html").write_text(PAGE_TPL.format(title=f"{cat} — Category", brand=escape(brand), site_url=site_url.rstrip("/"), slug="", theme_css=THEMES["bulma"]["css"], analytics=analytics_html, base_prefix=base_prefix, body_html=body, year=datetime.date.today().year, container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"], jsonld=jsonld_webpage(f"Category: {cat}", site_url, f"{site_url.rstrip('/')}/category/{slugify(cat)}/page/{n}/")), encoding="utf-8")
 
 def build_tag_pages(brand, site_url, base_prefix, theme, posts_meta, analytics_html):
     ROOT=Path(__file__).resolve().parents[1]; SITE=ROOT/"site"; root=SITE/"tag"
@@ -242,14 +352,14 @@ def build_tag_pages(brand, site_url, base_prefix, theme, posts_meta, analytics_h
         page_items, page, total = paginate(items[::-1], 1, PAGE_SIZE)
         folder=root/slugify(t); folder.mkdir(parents=True, exist_ok=True)
         body=f"<h2 class='title is-4'>Tag: {escape(t)}</h2>" + "".join(f'<p>• <a href="{base_prefix}/posts/{m["slug"]}/">{escape(m["title"])}</a></p>' for m in page_items) + pagination_html(base_prefix, page, total, f"tag/{slugify(t)}")
-        html_out = PAGE_TPL.format(title=f"{t} — Tag", brand=escape(brand), site_url=site_url.rstrip("/"), slug="", theme_css=THEMES["bulma"]["css"], analytics=analytics_html, base_prefix=base_prefix, body_html=body, year=datetime.date.today().year, container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"])
+        html_out = PAGE_TPL.format(title=f"{t} — Tag", brand=escape(brand), site_url=site_url.rstrip("/"), slug="", theme_css=THEMES["bulma"]["css"], analytics=analytics_html, base_prefix=base_prefix, body_html=body, year=datetime.date.today().year, container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"], jsonld=jsonld_webpage(f"Tag: {t}", site_url, f"{site_url.rstrip('/')}/tag/{slugify(t)}/"))
         (folder/"index.html").write_text(html_out, encoding="utf-8")
         if total>1:
             for n in range(2,total+1):
                 page_items, _, _ = paginate(items[::-1], n, PAGE_SIZE)
                 body=f"<h2 class='title is-4'>Tag: {escape(t)}</h2>" + "".join(f'<p>• <a href="{base_prefix}/posts/{m["slug"]}/">{escape(m["title"])}</a></p>' for m in page_items) + pagination_html(base_prefix, n, total, f"tag/{slugify(t)}")
                 pdir = folder/"page"/str(n); pdir.mkdir(parents=True, exist_ok=True)
-                (pdir/"index.html").write_text(PAGE_TPL.format(title=f"{t} — Tag", brand=escape(brand), site_url=site_url.rstrip("/"), slug="", theme_css=THEMES["bulma"]["css"], analytics=analytics_html, base_prefix=base_prefix, body_html=body, year=datetime.date.today().year, container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"]), encoding="utf-8")
+                (pdir/"index.html").write_text(PAGE_TPL.format(title=f"{t} — Tag", brand=escape(brand), site_url=site_url.rstrip("/"), slug="", theme_css=THEMES["bulma"]["css"], analytics=analytics_html, base_prefix=base_prefix, body_html=body, year=datetime.date.today().year, container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"], jsonld=jsonld_webpage(f"Tag: {t}", site_url, f"{site_url.rstrip('/')}/tag/{slugify(t)}/page/{n}/")), encoding="utf-8")
 
 def write_search_index(posts_meta):
     ROOT=Path(__file__).resolve().parents[1]; SITE=ROOT/"site"; POSTS=SITE/"posts"
@@ -301,16 +411,67 @@ def write_404(brand, site_url, base_prefix, theme, analytics_html):
           container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"])
     (SITE/"404.html").write_text(html_out, encoding="utf-8")
 
+def _page_jsonld(title, site_url, slug_html):
+    url = f"{site_url.rstrip('/')}/{slug_html}"
+    return jsonld_webpage(title, site_url, url)
+
 def write_standard_pages(brand, site_url, base_prefix, theme, analytics_html, audience="readers", domain="example.com"):
+    # Rich, scannable copy for core pages
     PAGES={
-      "about":{"title":"About","body":f"<p><strong>{escape(brand)}</strong> provides practical guides, reviews, and tips for {escape(audience)}.</p>"},
-      "contact":{"title":"Contact","body":f"<p>Email: contact@{escape(domain)}</p>"},
-      "privacy":{"title":"Privacy","body":"<p>This site may use cookies for analytics. By continuing, you accept our use of cookies.</p>"},
-      "disclosure":{"title":"Affiliate Disclosure","body":"<p>As an Amazon Associate we earn from qualifying purchases.</p>"}
+      "about":{
+        "title":"About",
+        "body":f"""
+<h2 class="title is-4">Our mission</h2>
+<p><strong>{escape(brand)}</strong> publishes practical, evidence-aware guides and reviews for {escape(audience)}. We value clarity, useful details, and honest recommendations.</p>
+
+<h2 class="title is-4">Editorial standards</h2>
+<ul>
+  <li>We cite credible sources and link to primary research where relevant.</li>
+  <li>We disclose affiliate relationships and avoid pay-to-play rankings.</li>
+  <li>We update content as products and evidence evolve.</li>
+</ul>
+
+<h2 class="title is-4">Who we are</h2>
+<p>Independent editors and testers who care about helping you buy once, buy well.</p>
+"""
+      },
+      "contact":{
+        "title":"Contact",
+        "body":f"""
+<p>Email us: <a href="mailto:contact@{escape(domain)}">contact@{escape(domain)}</a></p>
+<p>We read every message and reply when we can. For partnership requests, include timelines, product details, and any embargo info.</p>
+"""
+      },
+      "privacy":{
+        "title":"Privacy",
+        "body":"""
+<h2 class="title is-4">Overview</h2>
+<p>We respect your privacy. This site may use cookies or analytics to understand traffic and improve the experience. We do not sell personal data.</p>
+
+<h2 class="title is-4">Analytics</h2>
+<p>We measure page views and clicks in aggregate to see what’s helpful. You can block analytics with your browser or privacy tools.</p>
+
+<h2 class="title is-4">Cookies</h2>
+<p>Cookies may be used to remember preferences or attribute affiliate visits. You can clear or block cookies anytime in your browser settings.</p>
+"""
+      },
+      "disclosure":{
+        "title":"Affiliate Disclosure",
+        "body":"""
+<p>Some links on this site are affiliate links. If you purchase through them, we may earn a commission—at no extra cost to you. We only recommend products we believe bring genuine value.</p>
+<p><em>As an Amazon Associate we earn from qualifying purchases.</em></p>
+"""
+      }
     }
     ROOT=Path(__file__).resolve().parents[1]; SITE=ROOT/"site"
     for slug_name, meta in PAGES.items():
-        out = PAGE_TPL.format(title=meta["title"], brand=escape(brand), site_url=site_url.rstrip("/"), slug=slug_name, theme_css=THEMES["bulma"]["css"], analytics=analytics_html, base_prefix=base_prefix, body_html=meta["body"], year=datetime.date.today().year, container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"])
+        out = PAGE_TPL.format(
+          title=meta["title"], brand=escape(brand), site_url=site_url.rstrip("/"),
+          slug=slug_name, theme_css=THEMES["bulma"]["css"], analytics=analytics_html,
+          base_prefix=base_prefix, body_html=meta["body"], year=datetime.date.today().year,
+          container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"],
+          jsonld=_page_jsonld(meta["title"], site_url, f"{slug_name}.html")
+        )
         (SITE/f"{slug_name}.html").write_text(out, encoding="utf-8")
 
 def write_post(brand, site_url, base_prefix, payload, amazon_tag, theme, related_list, analytics_html):
@@ -321,34 +482,38 @@ def write_post(brand, site_url, base_prefix, payload, amazon_tag, theme, related
     inline_cta=cta_banner("Our top pick is in stock with fast shipping.", aff_url)
     top_pick_box=product_box(data.get("product_name","Our Pick"), data.get("product_blurb","Solid choice for most."), aff_url)
 
-    # Body content
+    # Expanded body content (intro + sections + FAQ)
     body=[]
     if data.get("summary"): body.append(f"<p><em>{escape(data['summary'])}</em></p>")
+    # Encourage longer content by repeating sections with details if present
     body.append(render_sections(data.get("sections",[])))
     body.append(render_faq(data.get("faq",[])))
-    body_html="\n".join([b for b in body if b])
-
-    sources_html=render_sources(data.get("sources",[]))
-
-    intext_related=""
+    # Internal related inline links
     links=[f'<a href="{base_prefix}/posts/{r["slug"]}/">{escape(r["title"])}</a>' for r in related_list[:3]]
-    if links: intext_related="<p><em>Related:</em> " + " • ".join(links) + "</p>"
+    intext_related = "<p><em>Related:</em> " + " • ".join(links) + "</p>" if links else ""
+
+    body_html="\n".join([b for b in body if b])
+    sources_html=render_sources(data.get("sources",[]))
 
     a_name = escape(payload.get("author_name") or "Staff Writer")
     a_bio  = escape(payload.get("author_bio") or "")
     a_url  = (payload.get("author_url") or "").strip()
     author_link = f'• <a href="{escape(a_url)}" target="_blank" rel="nofollow noopener">Profile</a>' if a_url else ""
 
-    hero_img_tag = img_tag(title or payload.get("keyword",""), 1200, 630, title)
+    hero_img_tag = hero_img_for(slug, title, 1200, 630)
+
+    jsonld = jsonld_article(
+        title=title, site_url=site_url, slug=slug,
+        author_name=a_name, published_iso=today, tags=tags, faq_items=data.get("faq",[])
+    )
 
     html_out = POST_TPL.format(
         title=escape(title), brand=escape(brand),
         meta_desc=escape(data.get("meta_description","")),
         site_url=site_url.rstrip("/"), slug=slug, base_prefix=base_prefix,
         theme_css=THEMES["bulma"]["css"], analytics=analytics_html, date=today,
-        hero_img_tag=hero_img_tag,
-        body_html=body_html,
-        inline_cta=inline_cta, intext_related=intext_related, sources_html=sources_html,
+        hero_img_tag=hero_img_tag, jsonld=jsonld,
+        body_html=body_html, inline_cta=inline_cta, intext_related=intext_related, sources_html=sources_html,
         top_pick_box=top_pick_box, comparison_table="", year=datetime.date.today().year,
         container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"],
         category=escape(category), cat_slug=slugify(category), tags_html=render_tags(base_prefix,tags),
@@ -372,7 +537,13 @@ def write_archive_pages(brand, site_url, base_prefix, theme, posts_meta, analyti
         for m in sorted(by_cat[cat], key=lambda x:x["title"].lower()):
             sections.append(f'<p>• <a href="{base_prefix}/posts/{m["slug"]}/">{escape(m["title"])}</a></p>')
     body_html="\n".join(sections)
-    out = PAGE_TPL.format(title="Archive", brand=escape(brand), site_url=site_url.rstrip("/"), slug="archive", theme_css=THEMES["bulma"]["css"], analytics=analytics_html, base_prefix=base_prefix, body_html=body_html, year=datetime.date.today().year, container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"])
+    out = PAGE_TPL.format(
+        title="Archive", brand=escape(brand), site_url=site_url.rstrip("/"), slug="archive",
+        theme_css=THEMES["bulma"]["css"], analytics=analytics_html, base_prefix=base_prefix,
+        body_html=body_html, year=datetime.date.today().year,
+        container_open=THEMES["bulma"]["container_open"], container_close=THEMES["bulma"]["container_close"],
+        jsonld=_page_jsonld("Archive", site_url, "archive.html")
+    )
     (SITE/"archive.html").write_text(out, encoding="utf-8")
 
 def write_telemetry_js(SITE:Path, base_prefix:str):
